@@ -2,7 +2,7 @@
 name = "xmip-authorize"
 version = "0.1.0"
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/IlleNilsson/xmip-authorize"
 description = "Authorization contracts for authenticated Xmip Actors."
 
