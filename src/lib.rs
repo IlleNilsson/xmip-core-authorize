@@ -21,7 +21,7 @@
 use std::error::Error;
 use std::fmt;
 use xmip_context::{AlignmentResult, IdentityFacts, OnMisalignment};
-use xmip_party::Layer;
+use xmip_core::Layer;
 
 /// Which of the three points is asking.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,6 +54,13 @@ pub struct Attempt {
     pub contract: Option<String>,
     /// The Path, where one applies.
     pub path: Option<String>,
+
+    /// When the work is being attempted, in unix nanoseconds.
+    ///
+    /// Not when the identity arrived. A Journey may have waited days for a
+    /// human between the two, and the gap is the whole reason this gate runs
+    /// again rather than trusting what receive concluded.
+    pub at: i128,
 }
 
 impl Attempt {
@@ -64,7 +71,15 @@ impl Attempt {
             artifact: artifact.into(),
             contract: None,
             path: None,
+            at: 0,
         }
+    }
+
+    /// When this is being attempted. `Clock::unix_timestamp_nanos`.
+    #[must_use]
+    pub const fn at(mut self, unix_nanos: i128) -> Self {
+        self.at = unix_nanos;
+        self
     }
 
     #[must_use]
@@ -208,12 +223,65 @@ pub fn authorize(
     Decision::Allowed
 }
 
+/// Refuses an identity that was proven too long ago, or never said when.
+///
+/// The policy a waiting Journey needs. A Process that sat for three days
+/// waiting for a human resumes holding a record of an authentication that
+/// happened before the weekend, and whether that is still good enough is a
+/// question only a rule with a clock can answer.
+///
+/// Transport layer, because that is where proof of the connection lives. A
+/// message-layer signature does not go stale in the same way — it proves what
+/// the content was when it was signed, not that anybody is still trusted.
+pub struct Freshness {
+    /// How old an authentication may be, in nanoseconds.
+    pub within: i128,
+}
+
+impl Freshness {
+    /// Whatever the deployment considers a working session.
+    #[must_use]
+    pub const fn within_seconds(seconds: i64) -> Self {
+        Self {
+            within: (seconds as i128) * 1_000_000_000,
+        }
+    }
+}
+
+impl Authorizer for Freshness {
+    fn name(&self) -> &str {
+        "freshness"
+    }
+
+    fn layer(&self) -> Layer {
+        Layer::Transport
+    }
+
+    fn decide(&self, identity: &IdentityFacts, attempt: &Attempt) -> Option<Decision> {
+        match identity.transport.age_at(attempt.at) {
+            None => Some(Decision::denied(
+                "freshness",
+                "the identity does not record when it was authenticated",
+            )),
+            Some(age) if age > self.within => Some(Decision::denied(
+                "freshness",
+                format!(
+                    "authenticated {} seconds ago, and this allows {}",
+                    age / 1_000_000_000,
+                    self.within / 1_000_000_000
+                ),
+            )),
+            Some(_) => Some(Decision::Allowed),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use xmip_context::{Alignment, AuthenticatedIdentity, Verified};
     use xmip_core::PartyId;
-    use xmip_party::mechanism;
+    use xmip_core::{mechanism, Established};
 
     struct Policy {
         name: &'static str,
@@ -251,6 +319,7 @@ mod tests {
         let identity = AuthenticatedIdentity::new(
             mechanism::mutual_tls(),
             "CN=partner-x.example",
+            Established::Passed,
             Verified::Proven,
         );
 
@@ -264,6 +333,7 @@ mod tests {
         let identity = AuthenticatedIdentity::new(
             mechanism::edi_x12_interchange(),
             "ISA06=PARTNERX",
+            Established::Detected,
             Verified::Claimed,
         );
 
@@ -381,6 +451,63 @@ mod tests {
 
         assert!(!rejected.allowed());
         assert!(accepted.allowed(), "the default records it and proceeds");
+    }
+
+    const SECOND: i128 = 1_000_000_000;
+
+    #[test]
+    fn a_journey_that_waited_too_long_is_refused_when_it_resumes() {
+        // The Process waited three days for a human. The certificate that got
+        // the Message in may have expired in the meantime, and the record of
+        // that authentication is not a licence to act now.
+        let arrived_at = 1_000 * SECOND;
+        let facts = IdentityFacts::evaluate(
+            Alignment::None,
+            tls(Some(PartyId::new(1))).at(arrived_at),
+            None,
+        );
+
+        let fresh = Freshness::within_seconds(3600);
+        let policies: [&dyn Authorizer; 1] = [&fresh];
+
+        let straight_away = authorize(
+            &policies,
+            &facts,
+            &Attempt::new(Action::Send, "Billing").at(arrived_at + 60 * SECOND),
+            OnMisalignment::Accept,
+        );
+        let three_days_later = authorize(
+            &policies,
+            &facts,
+            &Attempt::new(Action::Send, "Billing").at(arrived_at + 3 * 86_400 * SECOND),
+            OnMisalignment::Accept,
+        );
+
+        assert!(straight_away.allowed());
+        assert!(!three_days_later.allowed());
+        assert!(
+            three_days_later.to_string().contains("259200 seconds ago"),
+            "got: {three_days_later}"
+        );
+    }
+
+    #[test]
+    fn an_identity_that_cannot_say_when_it_was_proven_is_not_fresh() {
+        // Unrecorded and stale are different failures, and both are denials.
+        let fresh = Freshness::within_seconds(3600);
+        let policies: [&dyn Authorizer; 1] = [&fresh];
+
+        let decision = authorize(
+            &policies,
+            &transport_only(),
+            &Attempt::new(Action::Process, "Approval").at(9_999 * SECOND),
+            OnMisalignment::Accept,
+        );
+
+        assert_eq!(
+            decision.to_string(),
+            "denied by freshness: the identity does not record when it was authenticated"
+        );
     }
 
     #[test]
