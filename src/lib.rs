@@ -103,7 +103,10 @@ pub enum Decision {
     ///
     /// Both halves matter to an operator: "denied" without the rule that denied
     /// it is a message that sends someone reading policy for an afternoon.
-    Denied { by: String, reason: String },
+    Denied {
+        by: String,
+        reason: String,
+    },
 }
 
 impl Decision {
@@ -281,7 +284,7 @@ mod tests {
     use super::*;
     use xmip_context::{Alignment, AuthenticatedIdentity, Verified};
     use xmip_core::PartyId;
-    use xmip_core::{mechanism, Established};
+    use xmip_core::{Established, mechanism};
 
     struct Policy {
         name: &'static str,
@@ -304,15 +307,27 @@ mod tests {
     }
 
     fn allows(name: &'static str, layer: Layer) -> Policy {
-        Policy { name, layer, answer: Some(Decision::Allowed) }
+        Policy {
+            name,
+            layer,
+            answer: Some(Decision::Allowed),
+        }
     }
 
     fn denies(name: &'static str, layer: Layer, why: &'static str) -> Policy {
-        Policy { name, layer, answer: Some(Decision::denied(name, why)) }
+        Policy {
+            name,
+            layer,
+            answer: Some(Decision::denied(name, why)),
+        }
     }
 
     fn abstains(name: &'static str, layer: Layer) -> Policy {
-        Policy { name, layer, answer: None }
+        Policy {
+            name,
+            layer,
+            answer: None,
+        }
     }
 
     fn tls(party: Option<PartyId>) -> AuthenticatedIdentity {
@@ -431,7 +446,10 @@ mod tests {
 
         let decision = authorize(&policies, &facts, &receiving(), OnMisalignment::Accept);
 
-        assert_eq!(decision.to_string(), "denied by contract: not this contract");
+        assert_eq!(
+            decision.to_string(),
+            "denied by contract: not this contract"
+        );
     }
 
     #[test]
