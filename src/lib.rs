@@ -189,10 +189,9 @@ pub fn authorize(
     {
         return Decision::denied(
             "alignment",
-            format!(
-                "the transport identity and the message identity resolved to different Parties, \
+            "the transport identity and the message identity resolved to different Parties, \
                  and this location rejects misalignment"
-            ),
+                .to_string(),
         );
     }
 
