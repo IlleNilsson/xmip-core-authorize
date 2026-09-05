@@ -18,10 +18,10 @@
 //! Authentication happens once, where the credential arrives. Authorization
 //! happens every time something is about to be done.
 
+use context::{AlignmentResult, IdentityFacts, OnMisalignment};
 use std::error::Error;
 use std::fmt;
-use xmip_context::{AlignmentResult, IdentityFacts, OnMisalignment};
-use xmip_core::Layer;
+use xcore::Layer;
 
 /// Which of the three points is asking.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -281,9 +281,9 @@ impl Authorizer for Freshness {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use xmip_context::{Alignment, AuthenticatedIdentity, Verified};
-    use xmip_core::PartyId;
-    use xmip_core::{Established, mechanism};
+    use context::{Alignment, AuthenticatedIdentity, Verified};
+    use xcore::PartyId;
+    use xcore::{Established, mechanism};
 
     struct Policy {
         name: &'static str,
