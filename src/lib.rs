@@ -19,7 +19,6 @@
 //! happens every time something is about to be done.
 
 use context::{AlignmentResult, IdentityFacts, OnMisalignment};
-use std::error::Error;
 use std::fmt;
 use xcore::Layer;
 
@@ -133,18 +132,7 @@ impl fmt::Display for Decision {
     }
 }
 
-#[derive(Debug)]
-pub struct AuthorizeError {
-    pub message: String,
-}
-
-impl fmt::Display for AuthorizeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
-}
-
-impl Error for AuthorizeError {}
+xcore::declare_error!(AuthorizeError);
 
 /// One policy, implemented by one module.
 ///
