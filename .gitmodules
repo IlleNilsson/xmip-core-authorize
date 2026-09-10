@@ -1,0 +1,42 @@
+[submodule "xmip-core-authorize-abac"]
+	path = abac
+	url = https://github.com/IlleNilsson/xmip-core-authorize-abac.git
+[submodule "xmip-core-authorize-acl"]
+	path = acl
+	url = https://github.com/IlleNilsson/xmip-core-authorize-acl.git
+[submodule "xmip-core-authorize-artifact"]
+	path = artifact
+	url = https://github.com/IlleNilsson/xmip-core-authorize-artifact.git
+[submodule "xmip-core-authorize-cedar"]
+	path = cedar
+	url = https://github.com/IlleNilsson/xmip-core-authorize-cedar.git
+[submodule "xmip-core-authorize-claim"]
+	path = claim
+	url = https://github.com/IlleNilsson/xmip-core-authorize-claim.git
+[submodule "xmip-core-authorize-contract"]
+	path = contract
+	url = https://github.com/IlleNilsson/xmip-core-authorize-contract.git
+[submodule "xmip-core-authorize-location"]
+	path = location
+	url = https://github.com/IlleNilsson/xmip-core-authorize-location.git
+[submodule "xmip-core-authorize-opa"]
+	path = opa
+	url = https://github.com/IlleNilsson/xmip-core-authorize-opa.git
+[submodule "xmip-core-authorize-party"]
+	path = party
+	url = https://github.com/IlleNilsson/xmip-core-authorize-party.git
+[submodule "xmip-core-authorize-policy"]
+	path = policy
+	url = https://github.com/IlleNilsson/xmip-core-authorize-policy.git
+[submodule "xmip-core-authorize-rbac"]
+	path = rbac
+	url = https://github.com/IlleNilsson/xmip-core-authorize-rbac.git
+[submodule "xmip-core-authorize-role"]
+	path = role
+	url = https://github.com/IlleNilsson/xmip-core-authorize-role.git
+[submodule "xmip-core-authorize-scope"]
+	path = scope
+	url = https://github.com/IlleNilsson/xmip-core-authorize-scope.git
+[submodule "xmip-core-authorize-transport"]
+	path = transport
+	url = https://github.com/IlleNilsson/xmip-core-authorize-transport.git
