@@ -1,2 +1,2 @@
-# xmip-authorize
+# xmip-core-authorize
 Authorizes authenticated Actors.
