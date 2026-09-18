@@ -190,13 +190,20 @@ pub fn authorize(
         Layer::Message => identity.message.is_some(),
     };
 
+    // Asked and answered are two counts. Until 2026-09-19 the gate counted
+    // the first and called it the second: one policy that abstained — an OPA
+    // the node may not reach while offline — left the gate open, against the
+    // second and third rules above and against the test's own comment.
     let mut consulted = 0_usize;
+    let mut permitted = 0_usize;
 
     for policy in policies.iter().filter(|policy| applicable(policy.layer())) {
         consulted += 1;
 
-        if let Some(Decision::Denied { by, reason }) = policy.decide(identity, attempt) {
-            return Decision::Denied { by, reason };
+        match policy.decide(identity, attempt) {
+            Some(Decision::Denied { by, reason }) => return Decision::Denied { by, reason },
+            Some(Decision::Allowed) => permitted += 1,
+            None => {}
         }
     }
 
@@ -205,6 +212,16 @@ pub fn authorize(
             "xmip",
             format!(
                 "no policy is configured for {} on '{}'",
+                attempt.action, attempt.artifact
+            ),
+        );
+    }
+
+    if permitted == 0 {
+        return Decision::denied(
+            "xmip",
+            format!(
+                "no policy had an opinion on {} on '{}': {consulted} asked, none permitted",
                 attempt.action, attempt.artifact
             ),
         );
@@ -397,7 +414,12 @@ mod tests {
             OnMisalignment::Accept,
         );
 
-        assert!(decision.allowed(), "one applicable policy was consulted");
+        assert!(!decision.allowed(), "asked is not answered");
+        assert!(
+            matches!(&decision, Decision::Denied { by, reason }
+                if by == "xmip" && reason.contains("none permitted")),
+            "{decision:?}"
+        );
     }
 
     #[test]
