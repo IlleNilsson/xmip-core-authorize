@@ -18,6 +18,8 @@
 //! Authentication happens once, where the credential arrives. Authorization
 //! happens every time something is about to be done.
 
+pub mod pattern;
+
 use context::{AlignmentResult, IdentityFacts, OnMisalignment};
 use std::fmt;
 use xcore::Layer;
