@@ -19,10 +19,12 @@
 //! happens every time something is about to be done.
 
 pub mod pattern;
+/// Who a policy's rule is about, named once for every technology.
+pub mod subject;
 
 use context::{AlignmentResult, IdentityFacts, OnMisalignment};
 use std::fmt;
-use xcore::Layer;
+use xcore::{Layer, NANOS_A_SECOND};
 
 /// Which of the three points is asking.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -252,7 +254,7 @@ impl Freshness {
     #[must_use]
     pub const fn within_seconds(seconds: i64) -> Self {
         Self {
-            within: (seconds as i128) * 1_000_000_000,
+            within: (seconds as i128) * NANOS_A_SECOND,
         }
     }
 }
@@ -276,8 +278,8 @@ impl Authorizer for Freshness {
                 "freshness",
                 format!(
                     "authenticated {} seconds ago, and this allows {}",
-                    age / 1_000_000_000,
-                    self.within / 1_000_000_000
+                    age / NANOS_A_SECOND,
+                    self.within / NANOS_A_SECOND
                 ),
             )),
             Some(_) => Some(Decision::Allowed),
