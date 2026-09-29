@@ -18,11 +18,11 @@ pub enum Subject {
     /// to a Party or not.
     Anyone,
     /// Whatever identity resolved to this Party. A Party is a shortcut to an
-    /// identity, not a permission (ADR-0019 clause 4), so a partner reaching
+    /// identity, not a permission (ADR-0019 clause 4), so a Party reaching
     /// Xmip through two endpoints with two certificates is named once.
     Party(PartyId),
-    /// The identity whose recorded value is exactly this — `CN=partner-x.example`,
-    /// `ISA06=PARTNERX` — under this mechanism, by the name the catalog
+    /// The identity whose recorded value is exactly this — `CN=party-x.example`,
+    /// `ISA06=PARTYX` — under this mechanism, by the name the catalog
     /// declares, or under any.
     Identity {
         mechanism: Option<String>,
@@ -93,7 +93,7 @@ mod tests {
     fn certificate() -> AuthenticatedIdentity {
         AuthenticatedIdentity::new(
             mechanism::mutual_tls(),
-            "CN=partner-x.example",
+            "CN=party-x.example",
             Established::Passed,
             Verified::Proven,
         )
@@ -106,9 +106,9 @@ mod tests {
         assert!(Subject::Anyone.matches(&held));
         assert!(Subject::Party(PartyId::new(1)).matches(&held));
         assert!(!Subject::Party(PartyId::new(2)).matches(&held));
-        assert!(Subject::identity("CN=partner-x.example").matches(&held));
-        assert!(Subject::identity_by("mutual-tls", "CN=partner-x.example").matches(&held));
-        assert!(!Subject::identity_by("certificate", "CN=partner-x.example").matches(&held));
+        assert!(Subject::identity("CN=party-x.example").matches(&held));
+        assert!(Subject::identity_by("mutual-tls", "CN=party-x.example").matches(&held));
+        assert!(!Subject::identity_by("certificate", "CN=party-x.example").matches(&held));
     }
 
     #[test]
@@ -119,8 +119,8 @@ mod tests {
             format!("Party {}", PartyId::new(7))
         );
         assert_eq!(
-            Subject::identity("ISA06=PARTNERX").to_string(),
-            "'ISA06=PARTNERX'"
+            Subject::identity("ISA06=PARTYX").to_string(),
+            "'ISA06=PARTYX'"
         );
         assert_eq!(
             Subject::identity_by("mutual-tls", "CN=x").to_string(),

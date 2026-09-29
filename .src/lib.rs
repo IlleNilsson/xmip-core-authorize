@@ -341,7 +341,7 @@ mod tests {
     fn tls(party: Option<PartyId>) -> AuthenticatedIdentity {
         let identity = AuthenticatedIdentity::new(
             mechanism::mutual_tls(),
-            "CN=partner-x.example",
+            "CN=party-x.example",
             Established::Passed,
             Verified::Proven,
         );
@@ -355,7 +355,7 @@ mod tests {
     fn isa06(party: Option<PartyId>) -> AuthenticatedIdentity {
         let identity = AuthenticatedIdentity::new(
             mechanism::edi_x12_interchange(),
-            "ISA06=PARTNERX",
+            "ISA06=PARTYX",
             Established::Detected,
             Verified::Claimed,
         );
@@ -371,7 +371,7 @@ mod tests {
     }
 
     fn receiving() -> Attempt {
-        Attempt::new(Action::Receive, "partner-x")
+        Attempt::new(Action::Receive, "party-x")
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         assert!(!decision.allowed());
         assert_eq!(
             decision.to_string(),
-            "denied by xmip: no policy is configured for receive on 'partner-x'"
+            "denied by xmip: no policy is configured for receive on 'party-x'"
         );
     }
 
@@ -578,7 +578,7 @@ mod tests {
         let facts = transport_only();
 
         for (action, artifact, expected) in [
-            (Action::Receive, "partner-x", true),
+            (Action::Receive, "party-x", true),
             (Action::Process, "Approval", false),
             (Action::Send, "Billing", false),
         ] {
