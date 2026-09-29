@@ -39,8 +39,8 @@ mod tests {
     #[test]
     fn a_star_stands_for_any_run_and_the_rest_for_itself() {
         assert!(matches("Billing*", "Billing"));
-        assert!(matches("partner-*", "partner-x"));
-        assert!(!matches("partner-*", "Partner-x"));
+        assert!(matches("party-*", "party-x"));
+        assert!(!matches("party-*", "Party-x"));
         assert!(matches("*", ""));
         assert!(matches("a*b*c", "axxbyyc"));
         assert!(!matches("a*b*c", "axxbyy"));
