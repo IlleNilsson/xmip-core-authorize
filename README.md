@@ -2,7 +2,7 @@
 
 The last gate: may this true identity do this, here. It runs before any
 actual work at all three points — whether this connection may post here,
-whether this Party's work may run in this Xmip Process, whether Xmip may
+whether this Party's work may run in this Work Process, whether Xmip may
 present this identity to that target — and answers with a `Decision`.
 
 Authorization does not verify a credential; it is handed an authenticated

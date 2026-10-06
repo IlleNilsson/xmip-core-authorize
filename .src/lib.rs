@@ -31,7 +31,7 @@ use xcore::{Layer, NANOS_A_SECOND};
 pub enum Action {
     /// May this connection post a Stream into this Receive Location.
     Receive,
-    /// May this Party's work run in this Xmip Process.
+    /// May this Party's work run in this Work Process.
     Process,
     /// May Xmip present this identity to this target.
     Send,
@@ -51,7 +51,7 @@ impl fmt::Display for Action {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Attempt {
     pub action: Action,
-    /// The artifact — a Receive Location, an Xmip Process, a Send Location.
+    /// The artifact — a Receive Location, a Work Process, a Send Location.
     pub artifact: String,
     /// The Contract, where one has been identified.
     pub contract: Option<String>,
