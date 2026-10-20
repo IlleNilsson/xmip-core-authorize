@@ -407,7 +407,7 @@ mod tests {
     #[test]
     fn abstaining_is_not_assent() {
         // A policy with no opinion leaves the gate exactly as it found it. If
-        // it is the only one applicable, nothing has been authorised.
+        // it is the only one applicable, nothing has been authorized.
         let quiet = abstains("quiet", Layer::Transport);
         let policies: [&dyn Authorizer; 1] = [&quiet];
 
@@ -490,7 +490,7 @@ mod tests {
     fn a_journey_that_waited_too_long_is_refused_when_it_resumes() {
         // The Process waited three days for a human. The certificate that got
         // the Message in may have expired in the meantime, and the record of
-        // that authentication is not a licence to act now.
+        // that authentication is not a license to act now.
         let arrived_at = 1_000 * SECOND;
         let facts = IdentityFacts::evaluate(
             Alignment::None,
