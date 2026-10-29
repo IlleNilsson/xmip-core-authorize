@@ -19,6 +19,8 @@
 //! happens every time something is about to be done.
 
 pub mod pattern;
+/// Who may ask a plane Xmip serves to its own parts what, decided once.
+pub mod plane;
 /// Who a policy's rule is about, named once for every technology.
 pub mod subject;
 
