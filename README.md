@@ -12,6 +12,16 @@ granted (ADR-0009).
 ADR-0019 orders the gates and ADR-0050 makes each technology under this
 repository one mechanism at this gate; `architecture.toml` names them.
 
+## One admission for every plane
+
+`authorize::plane::admit` is the admission every plane Xmip serves its own
+parts asks after its handshake and before it reads a call: from who the
+connection proved and its standing, ranked least first, against the plane's
+`Rule`s — the least standing that may ask an action and an operation, `*`
+the action's every other. Nothing proved asks nothing, an operation no rule
+names is refused. The Storage wire and a node's operate listener ask it
+(ADR-0009, amendment 2026-10-29).
+
 ## One subject, one evidence walk
 
 `authorize::subject::Subject` is whom a rule is about in every technology —
