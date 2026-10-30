@@ -62,7 +62,7 @@ pub struct Attempt {
 
     /// When the work is being attempted, in unix nanoseconds.
     ///
-    /// Not when the identity arrived. A Journey may have waited days for a
+    /// Not when the identity arrived. A Message may have waited days for a
     /// human between the two, and the gap is the whole reason this gate runs
     /// again rather than trusting what receive concluded.
     pub at: i128,
@@ -238,7 +238,7 @@ pub fn authorize(
 
 /// Refuses an identity that was proven too long ago, or never said when.
 ///
-/// The policy a waiting Journey needs. A Process that sat for three days
+/// The policy a waiting Message needs. A Process that sat for three days
 /// waiting for a human resumes holding a record of an authentication that
 /// happened before the weekend, and whether that is still good enough is a
 /// question only a rule with a clock can answer.
