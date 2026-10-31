@@ -24,7 +24,7 @@ pub mod plane;
 /// Who a policy's rule is about, named once for every technology.
 pub mod subject;
 
-use context::{AlignmentResult, IdentityFacts, OnMisalignment};
+use context::{AlignmentResult, IdentityFacts, Minimum, OnMisalignment};
 use std::fmt;
 use xcore::{Layer, NANOS_A_SECOND};
 
@@ -160,14 +160,17 @@ pub trait Authorizer: Send + Sync {
 
 /// Run the authorization gate before any work is done.
 ///
-/// Three things happen, in this order:
+/// Four things happen, in this order:
 ///
-/// 1. **Misalignment is settled first.** ADR-0019 clause 7 puts `reject` here
+/// 1. **Each layer's verdict meets its minimum.** A claim weaker than the
+///    Location takes on its layer is refused before any policy is asked, so
+///    no technology can grant on it (ADR-0019, amendment 2026-10-31).
+/// 2. **Misalignment is settled.** ADR-0019 clause 7 puts `reject` here
 ///    rather than at routing, because misalignment is a policy outcome and not
 ///    a routing fault.
-/// 2. **Every policy for every applicable layer is asked.** Both must pass
+/// 3. **Every policy for every applicable layer is asked.** Both must pass
 ///    where both apply, and a policy that abstains does not count as assent.
-/// 3. **Nothing having an opinion is a denial.** An unconfigured gate is
+/// 4. **Nothing having an opinion is a denial.** An unconfigured gate is
 ///    closed, exactly as an unconfigured Receive Location accepts nothing.
 ///    A policy engine that defaults to yes is a policy engine that is not
 ///    consulted the day it matters.
@@ -177,7 +180,26 @@ pub fn authorize(
     identity: &IdentityFacts,
     attempt: &Attempt,
     on_misalignment: OnMisalignment,
+    minimum: Minimum,
 ) -> Decision {
+    let layers = [
+        ("transport", Some(&identity.transport), minimum.transport),
+        ("message", identity.message.as_ref(), minimum.message),
+    ];
+    for (layer, held, required) in layers {
+        if let Some(held) = held.filter(|held| !held.verified.meets(required)) {
+            return Decision::denied(
+                "verification",
+                format!(
+                    "the {layer} identity is {}, and '{}' takes {} at least",
+                    held.verified.word(),
+                    attempt.artifact,
+                    required.verdict().word()
+                ),
+            );
+        }
+    }
+
     if identity.alignment == AlignmentResult::Misaligned
         && on_misalignment == OnMisalignment::Reject
     {
@@ -381,13 +403,74 @@ mod tests {
         // The same failure mode as an unconfigured Receive Location. A policy
         // engine that defaults to yes is one that is not consulted the day it
         // matters.
-        let decision = authorize(&[], &transport_only(), &receiving(), OnMisalignment::Accept);
+        let decision = authorize(
+            &[],
+            &transport_only(),
+            &receiving(),
+            OnMisalignment::Accept,
+            Minimum::TAKEN,
+        );
 
         assert!(!decision.allowed());
         assert_eq!(
             decision.to_string(),
             "denied by xmip: no policy is configured for receive on 'party-x'"
         );
+    }
+
+    #[test]
+    fn a_verdict_short_of_the_minimum_is_refused_before_any_policy_is_asked() {
+        // A drop folder's circumstance and an ISA06 are claimed. A Location
+        // takes proven unless its configuration writes a weaker minimum, and
+        // an open policy changes nothing: it is never asked.
+        let yes = allows("open", Layer::Transport);
+        let policies: [&dyn Authorizer; 1] = [&yes];
+        let edi = IdentityFacts::evaluate(Alignment::None, tls(None), Some(isa06(None)));
+
+        let proven = authorize(
+            &policies,
+            &edi,
+            &receiving(),
+            OnMisalignment::Accept,
+            Minimum::default(),
+        );
+        assert_eq!(
+            proven.to_string(),
+            "denied by verification: the message identity is claimed, and 'party-x' takes \
+             proven at least"
+        );
+
+        let claimed_message = Minimum {
+            message: context::Required::Claimed,
+            ..Minimum::default()
+        };
+        let taken = authorize(
+            &policies,
+            &edi,
+            &receiving(),
+            OnMisalignment::Accept,
+            claimed_message,
+        );
+        assert!(taken.allowed(), "{taken}");
+
+        let refused = IdentityFacts::evaluate(
+            Alignment::None,
+            AuthenticatedIdentity::new(
+                mechanism::mutual_tls(),
+                "CN=party-x.example",
+                Established::Passed,
+                Verified::Refused,
+            ),
+            None,
+        );
+        let never = authorize(
+            &policies,
+            &refused,
+            &receiving(),
+            OnMisalignment::Accept,
+            Minimum::TAKEN,
+        );
+        assert!(!never.allowed(), "a refused claim meets no minimum");
     }
 
     #[test]
@@ -401,6 +484,7 @@ mod tests {
             &transport_only(),
             &receiving(),
             OnMisalignment::Accept,
+            Minimum::TAKEN,
         );
 
         assert_eq!(decision.to_string(), "denied by rate-limit: over quota");
@@ -418,6 +502,7 @@ mod tests {
             &transport_only(),
             &receiving(),
             OnMisalignment::Accept,
+            Minimum::TAKEN,
         );
 
         assert!(!decision.allowed(), "asked is not answered");
@@ -442,6 +527,7 @@ mod tests {
             &transport_only(),
             &receiving(),
             OnMisalignment::Accept,
+            Minimum::TAKEN,
         );
 
         assert!(decision.allowed(), "got {decision}");
@@ -459,7 +545,13 @@ mod tests {
         let message = denies("contract", Layer::Message, "not this contract");
         let policies: [&dyn Authorizer; 2] = [&transport, &message];
 
-        let decision = authorize(&policies, &facts, &receiving(), OnMisalignment::Accept);
+        let decision = authorize(
+            &policies,
+            &facts,
+            &receiving(),
+            OnMisalignment::Accept,
+            Minimum::TAKEN,
+        );
 
         assert_eq!(
             decision.to_string(),
@@ -479,8 +571,20 @@ mod tests {
         let yes = allows("open", Layer::Transport);
         let policies: [&dyn Authorizer; 1] = [&yes];
 
-        let rejected = authorize(&policies, &facts, &receiving(), OnMisalignment::Reject);
-        let accepted = authorize(&policies, &facts, &receiving(), OnMisalignment::Accept);
+        let rejected = authorize(
+            &policies,
+            &facts,
+            &receiving(),
+            OnMisalignment::Reject,
+            Minimum::TAKEN,
+        );
+        let accepted = authorize(
+            &policies,
+            &facts,
+            &receiving(),
+            OnMisalignment::Accept,
+            Minimum::TAKEN,
+        );
 
         assert!(!rejected.allowed());
         assert!(accepted.allowed(), "the default records it and proceeds");
@@ -508,12 +612,14 @@ mod tests {
             &facts,
             &Attempt::new(Action::Send, "Billing").at(arrived_at + 60 * SECOND),
             OnMisalignment::Accept,
+            Minimum::TAKEN,
         );
         let three_days_later = authorize(
             &policies,
             &facts,
             &Attempt::new(Action::Send, "Billing").at(arrived_at + 3 * 86_400 * SECOND),
             OnMisalignment::Accept,
+            Minimum::TAKEN,
         );
 
         assert!(straight_away.allowed());
@@ -535,6 +641,7 @@ mod tests {
             &transport_only(),
             &Attempt::new(Action::Process, "Approval").at(9_999 * SECOND),
             OnMisalignment::Accept,
+            Minimum::TAKEN,
         );
 
         assert_eq!(
@@ -589,6 +696,7 @@ mod tests {
                 &facts,
                 &Attempt::new(action, artifact),
                 OnMisalignment::Accept,
+                Minimum::TAKEN,
             );
 
             assert_eq!(decision.allowed(), expected, "{action} on {artifact}");
