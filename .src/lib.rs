@@ -315,6 +315,7 @@ impl Authorizer for Freshness {
 mod tests {
     use super::*;
     use context::{Alignment, AuthenticatedIdentity, Verified};
+    use std::assert_matches;
     use xcore::PartyId;
     use xcore::{Established, mechanism};
 
@@ -506,9 +507,9 @@ mod tests {
         );
 
         assert!(!decision.allowed(), "asked is not answered");
-        assert!(
-            matches!(&decision, Decision::Denied { by, reason }
-                if by == "xmip" && reason.contains("none permitted")),
+        assert_matches!(
+            &decision,
+            Decision::Denied { by, reason } if by == "xmip" && reason.contains("none permitted"),
             "{decision:?}"
         );
     }
