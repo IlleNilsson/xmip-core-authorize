@@ -12,6 +12,15 @@ granted (ADR-0009).
 ADR-0019 orders the gates and ADR-0050 makes each technology under this
 repository one mechanism at this gate; `architecture.xmip` names them.
 
+## A grant, never a constraint, opens the gate
+
+Every `Attempt` carries the time it is attempted, given to `Attempt::new`.
+`Freshness` refuses an identity proven too long before that time, one that
+does not say when it was proven, and one proven after it; a fresh identity
+gets no opinion from it. A constraint never counts as a permit, so
+`Freshness` beside policies that all abstain is a denial: the gate opens
+only where a policy grants.
+
 ## One admission for every plane
 
 `authorize::plane::admit` is the admission every plane Xmip serves its own
