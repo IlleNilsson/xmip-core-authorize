@@ -26,7 +26,7 @@ pub mod subject;
 
 use context::{AlignmentResult, IdentityFacts, Minimum, OnMisalignment};
 use std::fmt;
-use xcore::{Layer, NANOS_A_SECOND};
+use xcore::{Clock as _, Layer, NANOS_A_SECOND, SystemClock};
 
 /// Which of the three points is asking.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -69,22 +69,26 @@ pub struct Attempt {
 }
 
 impl Attempt {
+    /// `action` on `artifact`, attempted at `at` in unix nanoseconds
+    /// (`Clock::unix_timestamp_nanos`). The time is required: an attempt
+    /// that says no time would be judged fresh against any identity.
     #[must_use]
-    pub fn new(action: Action, artifact: impl Into<String>) -> Self {
+    pub fn new(action: Action, artifact: impl Into<String>, at: i128) -> Self {
         Self {
             action,
             artifact: artifact.into(),
             contract: None,
             path: None,
-            at: 0,
+            at,
         }
     }
 
-    /// When this is being attempted. `Clock::unix_timestamp_nanos`.
+    /// `action` on `artifact`, attempted now by the estate's one clock
+    /// (`xcore::SystemClock`): for a caller that holds no clock of its own.
+    /// A caller that holds one passes its time to [`Attempt::new`].
     #[must_use]
-    pub const fn at(mut self, unix_nanos: i128) -> Self {
-        self.at = unix_nanos;
-        self
+    pub fn now(action: Action, artifact: impl Into<String>) -> Self {
+        Self::new(action, artifact, SystemClock.unix_timestamp_nanos())
     }
 
     #[must_use]
@@ -268,6 +272,11 @@ pub fn authorize(
 /// Transport layer, because that is where proof of the connection lives. A
 /// message-layer signature does not go stale in the same way — it proves what
 /// the content was when it was signed, not that anybody is still trusted.
+///
+/// A constraint, never a grant: a fresh identity is answered with no
+/// opinion, so freshness alone, or beside policies that all abstain, never
+/// opens the gate. An identity authenticated after the attempt it is asked
+/// about is refused: one of the two times is wrong, and neither is trusted.
 pub struct Freshness {
     /// How old an authentication may be, in nanoseconds.
     pub within: i128,
@@ -298,6 +307,13 @@ impl Authorizer for Freshness {
                 "freshness",
                 "the identity does not record when it was authenticated",
             )),
+            Some(age) if age < 0 => Some(Decision::denied(
+                "freshness",
+                format!(
+                    "authenticated {} seconds after the attempt it is asked about",
+                    (-age) / NANOS_A_SECOND
+                ),
+            )),
             Some(age) if age > self.within => Some(Decision::denied(
                 "freshness",
                 format!(
@@ -306,7 +322,7 @@ impl Authorizer for Freshness {
                     self.within / NANOS_A_SECOND
                 ),
             )),
-            Some(_) => Some(Decision::Allowed),
+            Some(_) => None,
         }
     }
 }
@@ -396,7 +412,7 @@ mod tests {
     }
 
     fn receiving() -> Attempt {
-        Attempt::new(Action::Receive, "party-x")
+        Attempt::new(Action::Receive, "party-x", 1_000 * SECOND)
     }
 
     #[test]
@@ -606,19 +622,20 @@ mod tests {
         );
 
         let fresh = Freshness::within_seconds(3600);
-        let policies: [&dyn Authorizer; 1] = [&fresh];
+        let grant = allows("rbac", Layer::Transport);
+        let policies: [&dyn Authorizer; 2] = [&fresh, &grant];
 
         let straight_away = authorize(
             &policies,
             &facts,
-            &Attempt::new(Action::Send, "Billing").at(arrived_at + 60 * SECOND),
+            &Attempt::new(Action::Send, "Billing", arrived_at + 60 * SECOND),
             OnMisalignment::Accept,
             Minimum::TAKEN,
         );
         let three_days_later = authorize(
             &policies,
             &facts,
-            &Attempt::new(Action::Send, "Billing").at(arrived_at + 3 * 86_400 * SECOND),
+            &Attempt::new(Action::Send, "Billing", arrived_at + 3 * 86_400 * SECOND),
             OnMisalignment::Accept,
             Minimum::TAKEN,
         );
@@ -631,6 +648,61 @@ mod tests {
         );
     }
 
+    fn fresh_facts() -> IdentityFacts {
+        IdentityFacts::evaluate(
+            Alignment::None,
+            tls(Some(PartyId::new(1))).at(1_000 * SECOND),
+            None,
+        )
+    }
+
+    #[test]
+    fn freshness_beside_a_policy_with_no_grant_is_denied_and_alone_is_denied_too() {
+        // The attack: a fresh identity, and an rbac that holds no grant for
+        // it. Freshness is a constraint and must not stand in for the grant.
+        let fresh = Freshness::within_seconds(3600);
+        let rbac = abstains("rbac", Layer::Transport);
+        let now = 1_000 * SECOND + 60 * SECOND;
+
+        let beside: [&dyn Authorizer; 2] = [&fresh, &rbac];
+        let alone: [&dyn Authorizer; 1] = [&fresh];
+        for policies in [&beside[..], &alone[..]] {
+            let decision = authorize(
+                policies,
+                &fresh_facts(),
+                &Attempt::new(Action::Receive, "party-x", now),
+                OnMisalignment::Accept,
+                Minimum::TAKEN,
+            );
+
+            assert!(!decision.allowed(), "{decision}");
+            assert!(
+                decision.to_string().contains("none permitted"),
+                "{decision}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_identity_authenticated_after_the_attempt_is_refused() {
+        let fresh = Freshness::within_seconds(3600);
+        let grant = allows("rbac", Layer::Transport);
+        let policies: [&dyn Authorizer; 2] = [&fresh, &grant];
+
+        let decision = authorize(
+            &policies,
+            &fresh_facts(),
+            &Attempt::new(Action::Receive, "party-x", 0),
+            OnMisalignment::Accept,
+            Minimum::TAKEN,
+        );
+
+        assert_eq!(
+            decision.to_string(),
+            "denied by freshness: authenticated 1000 seconds after the attempt it is asked about"
+        );
+    }
+
     #[test]
     fn an_identity_that_cannot_say_when_it_was_proven_is_not_fresh() {
         // Unrecorded and stale are different failures, and both are denials.
@@ -640,7 +712,7 @@ mod tests {
         let decision = authorize(
             &policies,
             &transport_only(),
-            &Attempt::new(Action::Process, "Approval").at(9_999 * SECOND),
+            &Attempt::new(Action::Process, "Approval", 9_999 * SECOND),
             OnMisalignment::Accept,
             Minimum::TAKEN,
         );
@@ -695,7 +767,7 @@ mod tests {
             let decision = authorize(
                 &policies,
                 &facts,
-                &Attempt::new(action, artifact),
+                &Attempt::new(action, artifact, 1_000 * SECOND),
                 OnMisalignment::Accept,
                 Minimum::TAKEN,
             );

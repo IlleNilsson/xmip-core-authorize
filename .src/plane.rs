@@ -11,6 +11,11 @@
 //! that may ask it. A caller nothing proved asks nothing, and an operation
 //! no rule names is refused: a plane is closed, not open, where its rules
 //! say nothing.
+//!
+//! **A standing is granted by name, caller by caller** ([`granted`]): a
+//! plane whose configuration lists who holds which standing grants each
+//! proven caller the standing its own name is listed with, and nothing to a
+//! caller no entry names. Proving a connection grants no standing.
 
 /// One rule of a plane: the least standing that may ask `operation` for
 /// `action`. `*` as the operation is every operation of that action no
@@ -75,9 +80,40 @@ pub fn admit(
     }
 }
 
+/// The standing a plane grants one proven caller: of `grants` — each a
+/// name its configuration lists and the standing listed with it — the
+/// least standing among the entries `names` says name this caller; `None`,
+/// no standing at all, where none does. The least, so an entry granting
+/// less is never outweighed by another naming the same caller otherwise.
+pub fn granted<'a>(
+    grants: impl IntoIterator<Item = (&'a str, u8)>,
+    names: impl Fn(&str) -> bool,
+) -> Option<u8> {
+    grants
+        .into_iter()
+        .filter(|(name, _)| names(name))
+        .map(|(_, standing)| standing)
+        .min()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_standing_is_the_callers_own_entrys_and_a_caller_no_entry_names_has_none() {
+        let grants = [("CN=alice", 1), ("CN=bob", 2), ("alice.example", 0)];
+        let named = |who: &'static [&'static str]| move |name: &str| who.contains(&name);
+        assert_eq!(granted(grants, named(&["CN=bob"])), Some(2));
+        assert_eq!(granted(grants, named(&["CN=alice"])), Some(1));
+        assert_eq!(
+            granted(grants, named(&["CN=alice", "alice.example"])),
+            Some(0),
+            "the least of the entries naming it"
+        );
+        assert_eq!(granted(grants, named(&["CN=mallory"])), None);
+        assert_eq!(granted([], named(&["CN=alice"])), None, "closed by default");
+    }
 
     const RULES: &[Rule] = &[
         Rule::new("read", "*", 0),
