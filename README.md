@@ -10,7 +10,7 @@ identity and decides. It is not a role model: a Party is recognized, a role is
 granted (ADR-0009).
 
 ADR-0019 orders the gates and ADR-0050 makes each technology under this
-repository one mechanism at this gate; `architecture.xmip` names them.
+repository one mechanism at this gate; `architecture.toml` names them.
 
 ## A grant, never a constraint, opens the gate
 
