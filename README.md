@@ -43,4 +43,8 @@ policy that reads evidence reads it through `context`'s
 entry per value, never split, so `rbac` and `role` read a list of roles or
 groups as several entries of one name. `claim` judges the message identity
 only, as its layer says (ADR-0050 section 5); the transport-layer policies
-that read evidence read both layers.
+that read evidence read both layers. The gate asks a message-layer policy
+where there is a message identity or the attempt names a Contract, so
+content bound to a Contract is judged even where the content proved no
+identity of its own (`contract` then judges the transport's; ADR-0019,
+amendment 2026-11-11).
