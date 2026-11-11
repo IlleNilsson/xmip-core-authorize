@@ -174,6 +174,8 @@ pub trait Authorizer: Send + Sync {
 ///    a routing fault.
 /// 3. **Every policy for every applicable layer is asked.** Both must pass
 ///    where both apply, and a policy that abstains does not count as assent.
+///    The message layer applies where there is a message identity or the
+///    attempt names a Contract (ADR-0019, amendment 2026-11-11).
 /// 4. **Nothing having an opinion is a denial.** An unconfigured gate is
 ///    closed, exactly as an unconfigured Receive Location accepts nothing.
 ///    A policy engine that defaults to yes is a policy engine that is not
@@ -215,11 +217,14 @@ pub fn authorize(
         );
     }
 
-    // Message-layer policies apply only where a message identity exists. Most
-    // of the estate has none — a raw CSV carries no message identity at all.
+    // Message-layer policies apply where a message identity exists, or where
+    // the attempt names a Contract: content bound to one is judged by the
+    // identity the sender proved, the transport's where the content proved
+    // none (ADR-0019, amendment 2026-11-11). Most of the estate has neither —
+    // a raw CSV carries no message identity and no Contract.
     let applicable = |layer: Layer| match layer {
         Layer::Transport => true,
-        Layer::Message => identity.message.is_some(),
+        Layer::Message => identity.message.is_some() || attempt.contract.is_some(),
     };
 
     // Asked and answered are two counts. Until 2026-09-19 the gate counted
@@ -548,6 +553,30 @@ mod tests {
         );
 
         assert!(decision.allowed(), "got {decision}");
+    }
+
+    #[test]
+    fn a_message_policy_is_asked_where_the_attempt_names_a_contract() {
+        // Content bound to a Contract is judged by the identity the sender
+        // proved, the connection's where the content proved none: a contract
+        // policy that would deny is asked, and denies (ADR-0019, amendment
+        // 2026-11-11).
+        let transport = allows("connection", Layer::Transport);
+        let message = denies("contract", Layer::Message, "agreed with another Party");
+        let policies: [&dyn Authorizer; 2] = [&transport, &message];
+
+        let decision = authorize(
+            &policies,
+            &transport_only(),
+            &receiving().on_contract("X12-850"),
+            OnMisalignment::Accept,
+            Minimum::TAKEN,
+        );
+
+        assert_eq!(
+            decision.to_string(),
+            "denied by contract: agreed with another Party"
+        );
     }
 
     #[test]
